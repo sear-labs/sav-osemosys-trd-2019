@@ -1,0 +1,24 @@
+# GAMS run artefacts - solprint=on writes multi-GB listings here
+*.lst
+*.log
+*.lxi
+*.gdx
+*.g00
+225*/
+_gams_py_*
+
+# credentials
+gamslice.txt
+gurobi.lic
+*.lic
+.env
+
+# spreadsheets of unverified provenance - see README
+*.xlsx
+*.xls
+
+# generated
+results/**
+!results/.gitkeep
+__pycache__/
+*.pyc

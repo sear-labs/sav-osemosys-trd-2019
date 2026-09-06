@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper."
+title: "sav-osemosys: OSeMOSYS ATX integrated energy-transportation model"
+version: 1.0.0
+license: MIT
+repository-code: "https://github.com/sear-labs/sav-osemosys-trd-2019"
+authors:
+  - family-names: Jones
+    given-names: "Erick C."
+    name-suffix: Jr.
+    orcid: "https://orcid.org/0000-0003-0559-4699"
+  - family-names: Leibowicz
+    given-names: "Benjamin D."
+preferred-citation:
+  type: article
+  title: "Contributions of shared autonomous vehicles to climate change mitigation"
+  journal: "Transportation Research Part D: Transport and Environment"
+  year: 2019
+  doi: "10.1016/j.trd.2019.05.005"
+  authors:
+    - family-names: Jones
+      given-names: "Erick C."
+      name-suffix: Jr.
+    - family-names: Leibowicz
+      given-names: "Benjamin D."
