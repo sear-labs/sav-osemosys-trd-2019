@@ -15,15 +15,35 @@ REF = Path(__file__).resolve().parents[1] / "reference-output"
 
 
 def load(path):
-    out = {}
+    """Parse a results CSV into {key-tuple: [values]}.
+
+    The number of leading label fields VARIES by section: most rows are
+    <name>,<region>,<tech>, but AnnualGenerationByTechnology and AnnualEmissions
+    carry a fourth (the fuel), e.g. ...,"CCPP","ELC",23.16,...
+
+    An earlier version assumed exactly three and silently dropped every four-field
+    row on the ValueError from float("ELC") - excluding 2,701 of 14,149 cells, 19%
+    of the data, from the comparison without saying so. Split on the first field
+    that parses as a number instead.
+    """
+    out, skipped = {}, 0
     for line in Path(path).read_text(encoding="utf-8", errors="replace").splitlines():
-        parts = line.split(",")
-        if len(parts) > 3:
-            key = tuple(p.strip('"') for p in parts[:3])
+        parts = [p.strip('"') for p in line.rstrip().split(",")]
+        k = 0
+        while k < len(parts):
             try:
-                out[key] = [float(p) for p in parts[3:] if p.strip()]
+                float(parts[k])
+                break
             except ValueError:
-                pass
+                k += 1
+        if k == 0 or k >= len(parts):
+            continue                       # header, blank, or all-text line
+        try:
+            out[tuple(parts[:k])] = [float(p) for p in parts[k:] if p.strip()]
+        except ValueError:
+            skipped += 1
+    if skipped:
+        print(f"warning: {skipped} rows in {Path(path).name} failed to parse", file=sys.stderr)
     return out
 
 
