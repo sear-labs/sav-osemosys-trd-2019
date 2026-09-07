@@ -161,6 +161,39 @@ class Instance:
             return False
         return True
 
+    # GAMS writes whichever name a symbol was DECLARED with, so a parameter declared
+    # over an alias exports its column as that alias. Measured on this instance:
+    # DemandResponseDiscountRate(r) exports as "r", not "REGION". Resolving aliases
+    # here means callers name the set they mean and do not have to know which
+    # declaration a symbol happened to use.
+    _ALIASES = {
+        "r": "REGION", "rr": "REGION",
+        "y": "YEAR", "yy": "YEAR", "v": "YEAR",
+        "l": "TIMESLICE", "ll": "TIMESLICE",
+        "t": "TECHNOLOGY", "tt": "TECHNOLOGY",
+        "f": "FUEL", "e": "EMISSION", "ee": "EMISSION",
+        "m": "MODE_OF_OPERATION", "s": "STORAGE",
+        "ls": "SEASON", "d": "DR_TYPE",
+    }
+
+    def _resolve_column(self, symbol: str, df: pd.DataFrame, wanted: str) -> str:
+        if wanted in df.columns:
+            return wanted
+        # Several aliases map to one set (r and rr are both REGION), so collect every
+        # alias of the wanted name rather than inverting the map, which would keep
+        # only the last one and silently fail to resolve the others.
+        aliases = [a for a, canonical in self._ALIASES.items() if canonical == wanted]
+        for candidate in (*aliases, wanted.lower(), wanted.upper()):
+            if candidate in df.columns:
+                return candidate
+        # A single unnamed dimension exports as Dim1.
+        if wanted != "Val" and list(df.columns) == ["Dim1", "Val"]:
+            return "Dim1"
+        raise KeyError(
+            f"{symbol} has no column {wanted!r} (nor an alias of it); "
+            f"it has {list(df.columns)}"
+        )
+
     def elements(self, set_name: str) -> list[str]:
         """The members of a GAMS set, in file order - which is the model's order."""
         df = self[set_name]
@@ -182,9 +215,7 @@ class Instance:
         """
         df = self[name]
         cols = list(keys) if keys else [c for c in df.columns if c != "Val"]
-        missing = [c for c in cols if c not in df.columns]
-        if missing:
-            raise KeyError(f"{name} has no column(s) {missing}; it has {list(df.columns)}")
+        cols = [self._resolve_column(name, df, c) for c in cols]
         values = df["Val"].astype(float).to_numpy()
         if len(cols) == 1:
             return dict(zip(df[cols[0]].astype(str), values))
