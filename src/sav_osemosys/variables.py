@@ -135,3 +135,29 @@ def add_variables(b: "BuiltModel") -> None:
         "DiscountedDemandResponseAnnualCost", list(Y))
 
     v["z"] = m.addVar(lb=-gp.GRB.INFINITY, name="z")
+
+    _fixed_bounds(b)
+
+
+def _fixed_bounds(b: "BuiltModel") -> None:
+    """The model's one variable BOUND, as opposed to its 107 equations.
+
+        ProductionByTechnology.fx(y, LowV2G, "EV_CHARGE", f, r) = 0;
+
+    Private EV charging is fixed to zero in every daytime timeslice - private cars
+    charge at night, always, in every scenario. It sits among the variable
+    declarations in ATX_Integrated_Final_Fleet.gms rather than in the equations file.
+
+    Worth stating plainly because it is the kind of thing a port misses by
+    construction: walking the equations one by one never encounters it, and leaving it
+    out costs 1.70 on an objective of 72,412 - too small to notice, far too large to be
+    arithmetic. The line below it does the same for the FLEET charger and is commented
+    out, which is why night-only charging is a scenario lever for the fleet and a
+    permanent fact for private cars.
+    """
+    ix, v = b.indices, b.var
+    charged_fuels = [f for (t, f) in ix.produces_tf if t == "EV_CHARGE"]
+    for y in ix.years:
+        for l in ix.low_v2g:
+            for f in charged_fuels:
+                v["ProductionByTechnology"][y, l, "EV_CHARGE", f].UB = 0.0

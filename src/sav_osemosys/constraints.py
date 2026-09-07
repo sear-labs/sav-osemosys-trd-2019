@@ -504,12 +504,15 @@ def _study_specific(b: "BuiltModel") -> None:
                  name="PubMiles")
 
     # Fossil plant must cover a share of peak demand.
+    # GAMS sums RateOfUseByTechnology over EVERY technology. Requiring a technology to
+    # both produce AND consume ELC drops seven real consumers - EV, EV_F, PHEV and the
+    # rest - which loosens the constraint. Not binding at this optimum, but wrong.
+    elc_consumers = [t for (t, f) in ix.consumes_tf if f == "ELC"]
     m.addConstrs((gp.quicksum(v["TotalCapacityAnnual"][y, t] for t in ix.nicpp)
                   >= p.nicpp_lower[y]
                   * (v["RateOfDemand"][y, l, "ELC"]
                      + gp.quicksum(v["RateOfUseByTechnology"][y, l, t, "ELC"]
-                                   for (t, f) in ix.produces_tf if f == "ELC"
-                                   and (t, "ELC") in set(ix.consumes_tf)))
+                                   for t in elc_consumers))
                   / p.capacity_to_activity["COALPP"]
                   for y in Y for l in L), name="FFPowerPlantCapAtPeakDemand")
 
