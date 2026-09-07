@@ -70,6 +70,16 @@ against published tax results is why it kept coming out "slightly off".
   explicitly.
 - **The bundled 2018 `.lst`/`.log` are not a solve.** The licence had expired eleven days
   earlier and the job ran 0.058 s. The CSVs are the only reproduction target.
+- **The briefing's `optcr = 0.05` / `optca = 1000` trap does not apply here.** Those are
+  MIP gap parameters and this model is a pure **LP** - zero binary or integer declarations
+  in either GAMS file, `solve ... using lp`. Neither parameter appears in any of the five
+  model files; checked 2026-09-07. The driver still zeroes both, but as a guard against a
+  future MIP formulation returning a gapped answer, not because they bind today. Do not
+  spend time hunting them.
+- **The 2018 reference's termination status is unknowable** - the bundled `.lst`/`.log` are
+  not a solve. It is bounded from the other side instead: a certified-optimal re-solve
+  returns the same objective (85,409.64), and a 5% gap would be ~4,270 units, so whatever
+  status the 2018 run ended in, it landed on the optimum.
 - **`validate.py` parses a variable number of label fields.** `AnnualGenerationByTechnology`
   and `AnnualEmissions` rows carry a fourth (the fuel). Assuming three silently dropped
   19% of the comparison.
