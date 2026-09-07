@@ -134,6 +134,95 @@ a year — exactly the published policy — and then zeroes it on the very next 
 carries the same pair commented out, below the cap. The scenario driver restores it rather than
 reinventing it.
 
+## The model in Python — and why that is the point
+
+GAMS is licensed for everyone, academics included. So until now, **reading this model's
+formulation at all required commercial software** — not solving it, reading it. CPLEX was
+never the real barrier.
+
+`src/sav_osemosys/` is the same model in gurobipy, reading the same open CSVs. Anyone can
+read it; anyone with a free Gurobi academic licence can solve it; and the reduced instance
+in the example notebook solves with `highspy`, which needs no licence at all.
+
+```bash
+pip install -e ".[gurobi]"
+python scripts/reconcile.py          # every scenario, against GAMS
+```
+
+### It agrees with GAMS on all ten scenarios
+
+| # | scenario | gurobipy | GAMS | relative |
+|---|---|---:|---:|---:|
+| 1 | 70% / no tax / optimized / 0.5 | 66,113.1982 | 66,113.1982 | 1.3e-11 |
+| 2 | 70% / no tax / optimized / 2 | 85,409.6403 | 85,409.6403 | 4.7e-10 |
+| 3 | 70% / no tax / optimized / 1 | 72,412.3298 | 72,412.3298 | 1.2e-11 |
+| 4 | 70% / no tax / **night** / 1 | 75,110.5639 | 75,110.5565 | 9.9e-08 |
+| 5 | none / no tax | 92,091.3874 | 92,091.3874 | 1.3e-10 |
+| 6 | 70% / **tax** / optimized / 0.5 | 71,267.7622 | 71,267.7622 | 6.1e-16 |
+| 7 | 70% / **tax** / optimized / 2 | 90,819.9507 | 90,819.9507 | 3.8e-10 |
+| 8 | 70% / **tax** / optimized / 1 | 77,638.3617 | 77,638.3617 | 6.3e-10 |
+| 9 | 70% / **tax** / **night** / 1 | 80,451.6360 | 80,451.6299 | 7.6e-08 |
+| 10 | none / **tax** | 97,883.0846 | 97,883.0846 | 1.1e-10 |
+
+GAMS objectives are read from the **GDX**, never from the results CSV — that writer prints
+two decimals, which is enough to hide a real disagreement and enough to manufacture a fake
+one.
+
+**Eight of ten agree to 1e-10 or better. The two that do not are both night-charging
+cases**, at ~1e-7 — a thousand times the others, and worth naming rather than averaging
+into a summary statistic. It is not infeasibility: the primal residual on those solves is
+4.5e-15 relative to the largest matrix coefficient. Both solvers' optimality tolerances
+are 1e-6 relative, so a 1e-7 disagreement is inside the range neither claims to resolve on
+a degenerate, badly scaled problem. Forcing daytime charging to zero makes the problem
+more degenerate, which is presumably why those two cases are where it shows.
+
+### It is smaller than GAMS, and that is not an approximation
+
+| | GAMS | gurobipy |
+|---|---:|---:|
+| variables | 18,760,518 | **1,562,993** |
+| build time | 72 s | **42 s** |
+| after presolve | — | 116,729 x 105,971 |
+
+GAMS generates `ProductionByTechnology` for every technology-fuel pair, including (coal
+plant, gasoline). **51 of 765 pairs actually produce anything and 44 consume** — 6.7% and
+5.8%. A variable that exists only to be forced to zero is padding, and presolve removes it
+anyway; this declines to create it. The mathematics is identical, which is what the
+reconciliation above establishes.
+
+### What does NOT reproduce, and why
+
+Cost and totals reproduce. **Dispatch and build timing do not, and were never unique.**
+After the objective matches, the surviving solution differences are of two kinds:
+
+- **differences under 0.005** — the results CSV prints two decimals, so these are the
+  print format, not the model.
+- **`EV_DISCHARGE` and `EV_DISCHARGE_F`**, differing by 9-22%. Nothing constrains their
+  capacity and nothing charges for it, so the optimum does not determine them. Any value
+  is as optimal as any other.
+
+That is the whole residual. It is stated here rather than left as an unexplained gap,
+because an unexplained residual is indistinguishable from an unfound bug.
+
+### One thing a port misses by construction
+
+The formulation is 107 equations, and porting them one at a time is not sufficient. This
+model also carries a variable **bound**, in the data file among the variable declarations:
+
+```gams
+ProductionByTechnology.fx(y, LowV2G, "EV_CHARGE", f, r) = 0;
+```
+
+Private EV charging is fixed to zero in every daytime timeslice — always, in every
+scenario. Omitting it left the objective 1.70 low on 72,412: too small to notice, far too
+large to be arithmetic, and invisible to a check that walks the equation list. **Grep the
+source for bound attributes before believing a port is complete.** There is exactly one in
+this model, which is precisely why it was easy to miss.
+
+The line directly below it does the same for the *fleet* charger and is commented out.
+That is why night-only charging is a scenario lever for the fleet and a permanent fact for
+private cars.
+
 ## Running it
 
 ```bash

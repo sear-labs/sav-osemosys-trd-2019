@@ -109,6 +109,38 @@ open-source solver rather than a typical one.
 GAMS 42.5 bundles a 2023 HiGHS; current HiGHS is several major versions on. Retest with presolve
 on, IPM, and a current build before concluding anything.
 
+## Porting a model: what an equation-by-equation walk misses
+
+**Grep for variable BOUNDS before believing a port is complete.** This model's formulation
+is 107 equations plus exactly one bound, `ProductionByTechnology.fx(y, LowV2G, "EV_CHARGE",
+f, r) = 0`, sitting among the variable declarations in the data file. Omitting it left the
+gurobipy objective 1.70 low on 72,412 - invisible to a check that diffs the equation list,
+because it is not an equation. Sweep `.fx` `.up` `.lo` (and `.scale` `.prior` if numerics
+matter), and scope the sweep to the files that produced the published result.
+
+**The sign of a discrepancy says what kind of bug it is.** Too low on a minimisation means
+under-constrained - a missing restriction, not a wrong coefficient. That turned "search
+everything" into "search for something that restricts".
+
+**A real bug that explains nothing is a trap.** `FFPowerPlantCapAtPeakDemand` had a genuine
+transcription error, correctly fixed, that moved the objective by zero because it was not
+binding. Finding it nearly ended the search.
+
+**"positive variable defined by an equation" only constrains anything if the defining
+expression can go negative.** All five CI equations look like constraints and are inert.
+
+**OPTIMAL is a status, not a feasibility guarantee** (via the FEWS session, which hit status
+2 with MaxVio 2.06e-03). Read `MaxVio`, and scale it by the largest constraint-matrix
+coefficient - an absolute gate is wrong for a matrix spanning `[1e-06, 1e+06]`, and scaling
+by `MaxRHS` here would let the 1e9 no-cap sentinel loosen it three orders of magnitude.
+Measured here: 4.5e-15 relative.
+
+**`v.UB != GRB.INFINITY` is broken.** Gurobi returns `float('inf')`; `GRB.INFINITY` is
+1e100. Use `< float("inf")`. Verified in this environment.
+
+**Read solver objectives from the GDX, not the results CSV.** That writer prints two
+decimals - enough to hide a real disagreement and enough to manufacture a fake one.
+
 ## How the scenario driver stays honest
 
 The checks, and why each exists, are in the README under *How the rebuild is kept honest*. Do not

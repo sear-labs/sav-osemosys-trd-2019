@@ -35,6 +35,16 @@ DEFAULT_GDXDUMP = r"C:\GAMS\42\gdxdump.exe"
 # optimality, so anything above this is a formulation difference, not arithmetic.
 OBJECTIVE_TOLERANCE = 1e-6
 
+# OPTIMAL is a status, not a feasibility guarantee. Gurobi can return status 2 with a
+# primal residual far above its own promised tolerance, and the status word will not say
+# so - reported by the FEWS session, which found status 2 alongside MaxVio 2.06e-03
+# against a promised 1e-06. So read the residual, not the word.
+#
+# The bound is RELATIVE to the model's largest coefficient. An absolute tolerance is
+# wrong for a model whose matrix spans [1e-06, 1e+06]: the same session gated on one and
+# rejected 87 of 91 solves whose relative violation was 4e-10.
+MAX_RELATIVE_VIOLATION = 1e-9
+
 
 def find_gdxdump(explicit: str | None) -> str | None:
     for cand in (explicit, os.environ.get("GDXDUMP"), shutil.which("gdxdump"), DEFAULT_GDXDUMP):
@@ -115,14 +125,29 @@ def main() -> int:
 
         got = b.model.ObjVal
         rel = abs(got - expected) / max(abs(expected), 1.0)
-        ok = rel <= OBJECTIVE_TOLERANCE
+
+        # Feasibility, read rather than assumed. Scaled by the largest matrix
+        # coefficient so the tolerance means the same thing across a badly scaled model.
+        # Scale by the largest CONSTRAINT-MATRIX coefficient, not by MaxRHS. MaxRHS
+        # here is 1e9, the "no emissions cap" sentinel, and letting an arbitrary
+        # sentinel set the yardstick would loosen the gate by three orders of magnitude
+        # for reasons that have nothing to do with the solve.
+        scale = max(abs(b.model.MaxCoeff), 1.0)
+        violation = b.model.MaxVio / scale
+        feasible = violation <= MAX_RELATIVE_VIOLATION
+
+        ok = rel <= OBJECTIVE_TOLERANCE and feasible
         compared += 1
-        if not ok:
+        if rel > OBJECTIVE_TOLERANCE:
             failures.append(f"scenario {n}: gurobipy {got!r} vs GAMS {expected!r} "
                             f"(relative {rel:.2e})")
+        if not feasible:
+            failures.append(f"scenario {n}: reported OPTIMAL but MaxVio is "
+                            f"{b.model.MaxVio:.3e} ({violation:.3e} relative to a "
+                            f"largest coefficient of {scale:.3e})")
         label = f"sav={row['sav']} tax={row['tax']} chg={row['charging']} dm={row['dm']}"
         print(f"{n:>2}  {label:<34}{got:>16,.4f}{expected:>16,.4f}{rel:>12.2e}"
-              f"  {'OK' if ok else 'MISMATCH'}   ({elapsed/60:.1f} min)")
+              f"  {'OK' if ok else 'MISMATCH'}   vio {violation:.1e}  ({elapsed/60:.1f} min)")
         b.model.dispose()
 
     print()
