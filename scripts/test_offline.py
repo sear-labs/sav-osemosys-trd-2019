@@ -222,6 +222,35 @@ def shipped_driver_is_untouched() -> str:
     return "5 shipped model files unmodified since HEAD"
 
 
+def exported_instance_agrees_with_the_gams_source() -> str:
+    """The demand identity must hold in the exported CSVs too, with no GAMS involved.
+
+    data/instance/ is the model readable without a licence, so it needs its own check
+    rather than inheriting trust from the GAMS run that produced it. If the export ever
+    drifts from the source - a changed unload, a changed DM - this fails here.
+    """
+    import csv as _csv
+    d = ROOT / "data" / "instance"
+    if not d.is_dir():
+        raise AssertionError("data/instance/ is missing; run scripts/export_instance.py")
+
+    def load(name):
+        with (d / f"{name}.csv").open(encoding="utf-8") as fh:
+            return list(_csv.DictReader(fh))
+
+    sad = {(r["FUEL"], r["YEAR"]): float(r["Val"]) for r in load("SpecifiedAnnualDemand")}
+    dm = float(load("DM")[0]["Val"])
+    assert dm != 0, "exported DM is zero; the base FMT row cannot be recovered"
+
+    with (ROOT / "scenarios" / "no-sav-vmt.csv").open(encoding="utf-8") as fh:
+        rows = list(_csv.reader(fh))
+    nosav = {y: float(v) for y, v in zip(rows[0][1:], rows[1][1:])}
+
+    gap = max(abs(sad[("VMT", y)] + sad[("FMT", y)] / dm - nosav[y]) for y in nosav)
+    assert gap <= 1e-3, f"exported instance departs from the no-SAV row by {gap}"
+    return f"{len(sad)} demand rows, DM={dm:g}, max gap {gap:.2e}"
+
+
 def main() -> int:
     print("offline checks - everything that does not need a solver\n")
     check("no-SAV row regenerates from the data file", no_sav_row_is_reproducible)
@@ -233,6 +262,7 @@ def main() -> int:
     check("driver never enables solprint", driver_never_turns_solprint_on)
     check("driver keeps its guards", driver_keeps_the_agreement_assertion)
     check("2018 model files untouched", shipped_driver_is_untouched)
+    check("exported instance agrees with GAMS", exported_instance_agrees_with_the_gams_source)
 
     print()
     if failures:
