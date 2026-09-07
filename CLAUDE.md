@@ -74,6 +74,31 @@ against published tax results is why it kept coming out "slightly off".
   and `AnnualEmissions` rows carry a fourth (the fuel). Assuming three silently dropped
   19% of the comparison.
 
+## The solver is a parameter, and HiGHS does not currently work
+
+`--solver` on `run_scenarios.py` sets `option lp=`. Default `cplex`, which is what the 2018
+run and the 98.35% reproduction used.
+
+**Measured 2026-09-07: GAMS 42.5's bundled HiGHS 1.5.1 did not solve scenario 3 in 6.8 hours.**
+CPLEX solves it in 94 seconds. HiGHS reached objective 16,005 against the true 72,412.33 after
+1.1M simplex iterations, with primal infeasibility *rising* over the run - 1.8e6 at iteration 0
+to 5.8e11 at 1.1M. That is numerical trouble, not slow progress.
+
+**Do not read this as "HiGHS cannot do it."** Three things about that run were unfavourable and
+none has been tried yet:
+
+- the log says `Solving LP without presolve or with basis` - **presolve was off**, on an
+  18.8M-row LP. Likely the single biggest lever.
+- `Using EKK dual simplex solver - serial` - single-threaded.
+- dual simplex rather than **IPM**, which usually wins on a huge degenerate LP.
+
+The matrix range is `[1e-6, 4.32e6]`, twelve orders of magnitude. Poor scaling is exactly where
+commercial presolve and scaling earn their licence fee, so this model is a hard case for an
+open-source solver rather than a typical one.
+
+GAMS 42.5 bundles a 2023 HiGHS; current HiGHS is several major versions on. Retest with presolve
+on, IPM, and a current build before concluding anything.
+
 ## How the scenario driver stays honest
 
 The checks, and why each exists, are in the README under *How the rebuild is kept honest*. Do not

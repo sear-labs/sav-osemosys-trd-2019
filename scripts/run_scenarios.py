@@ -98,7 +98,8 @@ def levers(row: dict[str, str]) -> dict[str, str]:
     }
 
 
-def run_one(gams: str, row: dict[str, str], compile_only: bool, dry_run: bool) -> bool:
+def run_one(gams: str, row: dict[str, str], compile_only: bool, dry_run: bool,
+            solver: str = "cplex") -> bool:
     sid = row["scenario"]
     workdir = RESULTS / f"scenario-{int(sid):02d}"
     workdir.mkdir(parents=True, exist_ok=True)
@@ -111,6 +112,7 @@ def run_one(gams: str, row: dict[str, str], compile_only: bool, dry_run: bool) -
         f"--RESULTSFILE={workdir / f'scenario-{int(sid):02d}.csv'}",
         f"--GDXFILE={workdir / f'scenario-{int(sid):02d}.gdx'}",
         f"--LEVERSFILE={workdir / 'levers.csv'}",
+        f"--SOLVER={solver}",
         "o=" + str(workdir / "run.lst"),
         "lo=2", "lf=" + str(workdir / "run.log"),
     ] + [f"--{k}={v}" for k, v in lv.items()]
@@ -153,6 +155,8 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only", help="comma-separated scenario numbers")
     ap.add_argument("--gams", help="path to gams.exe")
+    ap.add_argument("--solver", default="cplex",
+                    help="LP solver (default cplex; highs ships with GAMS, no licence)")
     ap.add_argument("--compile-only", action="store_true",
                     help="compile the driver without solving")
     ap.add_argument("--dry-run", action="store_true", help="print commands, run nothing")
@@ -175,7 +179,7 @@ def main() -> int:
 
     started = time.time()
     failed = [r["scenario"] for r in rows
-              if not run_one(gams, r, args.compile_only, args.dry_run)]
+              if not run_one(gams, r, args.compile_only, args.dry_run, args.solver)]
 
     if args.dry_run:
         return 0

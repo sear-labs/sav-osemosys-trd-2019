@@ -25,6 +25,12 @@ $if not set RESULTSFILE $abort 'RESULTSFILE not set'
 $if not set GDXFILE     $abort 'GDXFILE not set'
 $if not set LEVERSFILE  $abort 'LEVERSFILE not set'
 
+* The LP solver is configuration, not code. CPLEX is the default because it is what
+* the 2018 run and the 98.35% reproduction used; HIGHS ships with GAMS and needs no
+* commercial licence. Expect a different vertex from a different solver - this LP is
+* degenerate, so compare the OBJECTIVE, never the dispatch.
+$if not set SOLVER $set SOLVER cplex
+
 $include ATX_Integrated_Final_Fleet.gms
 $include osemosys_equations.gms
 
@@ -165,6 +171,7 @@ put "fmt_2050", fmt_2050 /;
 put "charge_factor_day_W12", chg_day /;
 put "charge_factor_night_W1", chg_night /;
 put "demand_gap", demand_gap /;
+put "solver", "%SOLVER%" /;
 putclose;
 
 
@@ -175,7 +182,7 @@ putclose;
 * so that a switch to a MIP formulation cannot silently return a gapped answer.
 
 model osemosys /all/;
-option limrow=0, limcol=0, solprint=off, resLim=100000, lp=cplex, optcr=0, optca=0;
+option limrow=0, limcol=0, solprint=off, resLim=100000, lp=%SOLVER%, optcr=0, optca=0;
 solve osemosys minimizing z using lp;
 
 abort$(osemosys.modelstat <> 1)
