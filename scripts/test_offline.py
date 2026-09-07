@@ -8,6 +8,12 @@ would run: it covers the parts that go wrong silently - a mis-transcribed demand
 drifted results writer, a scenario grid that no longer means what it says - and it runs
 in under a second.
 
+Comparisons against regenerated files are LINE-based, never byte-based. Git checks these
+files out with CRLF on Windows while the generators write LF, so a byte comparison passes
+only on the machine where the file was first written - which is the one machine nobody
+thinks to check. .gitattributes pins the endings; line-based comparison is the belt to
+that pair of braces. Measured 2026-09-06: a clean clone failed two checks for exactly this.
+
 It does NOT check that the model solves, or that the scenarios reproduce the paper.
 scripts/run_scenarios.py and scripts/check_results.py do that, and they need GAMS.
 """
@@ -50,13 +56,13 @@ def no_sav_row_is_reproducible() -> str:
     assertion would fail, but only after a four-minute solve had been set up.
     """
     csv_path = ROOT / "scenarios" / "no-sav-vmt.csv"
-    before = csv_path.read_bytes()
+    before = csv_path.read_text(encoding="utf-8").splitlines()
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "extract_no_sav_row.py")],
                           capture_output=True, text=True)
     assert proc.returncode == 0, f"extractor failed:\n{proc.stdout}\n{proc.stderr}"
-    after = csv_path.read_bytes()
+    after = csv_path.read_text(encoding="utf-8").splitlines()
     assert before == after, "committed no-sav-vmt.csv differs from what the extractor produces"
-    return f"{len(after)} bytes, regenerated identically"
+    return f"{len(after)} lines, regenerated identically"
 
 
 def demand_split_holds() -> str:
@@ -167,11 +173,12 @@ def writers_agree() -> str:
 def scenario_writer_is_derived() -> str:
     """Regenerating the scenario writer must be a no-op, or someone hand-edited it."""
     path = ROOT / "model" / "Results_Scenario.gms"
-    before = path.read_bytes()
+    before = path.read_text(encoding="utf-8", errors="replace").splitlines()
     proc = subprocess.run([sys.executable, str(ROOT / "scripts" / "derive_results_writer.py")],
                           capture_output=True, text=True)
     assert proc.returncode == 0, f"derivation failed:\n{proc.stdout}\n{proc.stderr}"
-    assert path.read_bytes() == before, \
+    after = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    assert after == before, \
         "Results_Scenario.gms was hand-edited; regenerate it with derive_results_writer.py"
     return "regenerates identically"
 
