@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sav-osemosys"
+version = "0.2.0"
+description = "The OSeMOSYS ATX energy-transportation model behind Jones and Leibowicz (2019), Transportation Research Part D"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Erick C. Jones, Jr." },
+    { name = "Benjamin D. Leibowicz" },
+]
+keywords = ["osemosys", "energy-system", "shared-autonomous-vehicles", "optimization", "gurobi"]
+
+# Upper bounds are deliberate: an unpinned dependency will one day install a major
+# version with a changed API and either break or, worse, silently alter results.
+dependencies = [
+    "pandas>=2.0,<4",
+    "numpy>=1.24,<3",
+    "scipy>=1.10,<2",
+]
+
+[project.optional-dependencies]
+# The default solver. An academic licence is free and has no size limit; the licence
+# bundled with the pip package is capped at 2,000 variables, which this model exceeds
+# by four orders of magnitude - measured, see README.
+gurobi = ["gurobipy>=11,<14"]
+
+# The open-source path. No licence, no size cap. It does NOT solve the full model -
+# measured at 6.8 hours without converging - but it solves the reduced instance that
+# the example notebook builds, which is the point.
+highs = ["highspy>=1.5,<2"]
+
+dev = [
+    "pytest>=7,<9",
+    "sav-osemosys[gurobi,highs]",
+]
+
+[project.urls]
+Paper = "https://doi.org/10.1016/j.trd.2019.05.005"
+Repository = "https://github.com/sear-labs/sav-osemosys-trd-2019"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
