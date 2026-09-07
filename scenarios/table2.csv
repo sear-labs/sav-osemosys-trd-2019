@@ -1,0 +1,26 @@
+# Table 2 of Jones and Leibowicz (2019), Transportation Research Part D.
+# doi:10.1016/j.trd.2019.05.005
+#
+# This file IS the scenario definition. Adding a case is an edit here, never an
+# edit to model/osemosys_scenario.gms.
+#
+# sav       70   = SAV fleet reaches ~70% of travel demand by 2050 (the model's
+#                  shipped VMT/FMT split; measured 10.7% in 2015 -> 69.5% in 2050)
+#            none = no SAV fleet; all travel demand stays private VMT
+# tax       yes  = $20/tCO2 in 2015 rising 5% a year
+#            no   = no carbon price
+# charging  optimized = fleet EVs charge in any hour they are not driving
+#            night     = fleet EVs charge only in hours 21-24 and 1-5
+#            n/a       = no SAV fleet, so the paradigm does not apply
+# dm        multiplier on fleet miles travelled; n/a where there is no fleet
+scenario,sav,tax,charging,dm
+1,70,no,optimized,0.5
+2,70,no,optimized,2
+3,70,no,optimized,1
+4,70,no,night,1
+5,none,no,n/a,n/a
+6,70,yes,optimized,0.5
+7,70,yes,optimized,2
+8,70,yes,optimized,1
+9,70,yes,night,1
+10,none,yes,n/a,n/a

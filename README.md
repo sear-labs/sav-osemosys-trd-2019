@@ -13,7 +13,13 @@ The copy here is the authoritative one: **138,734 bytes, dated 2018-05-30**. It 
 largest, it is the only copy that sat beside its own solver output, and its results files carry the
 same date. The next-largest copy is 114,185 B and is a later variant; the smallest is 79,801 B.
 
-## Reproduction status — verified 2026-09-05
+## Two reproduction claims, and they are not the same
+
+Keeping these apart is what finally made this paper reproducible. **Claim 1** is that the model
+reproduces the run saved beside it in 2018. **Claim 2** is that it reproduces the ten scenarios
+published in the article. The first was true for years and was repeatedly mistaken for the second.
+
+## Claim 1: the model's own 2018 run — verified 2026-09-05
 
 Re-solved unmodified on GAMS 42.5 / CPLEX, eight years after the original run:
 
@@ -55,62 +61,140 @@ between timeslices at zero cost, so a modern CPLEX picks a different tie-break t
 A further 315 rows have no counterpart because the bundled report writer emits **Year 2020** while the
 reference CSVs were produced by one emitting **Year 2030**. That writer is not in this repository.
 
-## This reproduces the model's own run, NOT the published scenarios
+**Scenario 2 of the grid below is this same run**, and doubles as the regression test on the
+rebuild: same demands, same absent tax, same charging paradigm. It returns `85,409.6403` and
+validates at 98.35%, matching the tables above section for section. If the scenario driver ever
+breaks, that is where it shows.
 
-Read this before citing anything above as "reproducing the paper". The comparison is against the
-2018 CSVs saved beside the model, which is a weaker claim than reproducing the article, and the gap
-between the two is specific and knowable.
+## Claim 2: the paper's ten published scenarios — verified 2026-09-06
 
-**The paper runs ten scenarios. This run file runs two.** Table 2 of the paper crosses SAV diffusion
-(70% by 2050 / none), carbon tax (yes / no), SAV charging (optimized / night-only) and a travel-demand
-multiplier (0.5 / 1 / 2). The shipped `osemosys_run.gms` produces one unconstrained case and one
-policy case.
+**The paper runs ten scenarios. The 2018 run file runs two, and under the wrong policy
+instrument.** That is why this paper resisted reproduction for years: the saved run was being
+compared against published carbon-tax results while it applied an emissions *cap*.
 
-**And the policy case is not the paper's policy.** The paper describes a carbon tax beginning at
-**$20/tCO₂ and rising 5% annually**. What the run file actually applies is an emissions *cap* ramping
-to 10% of 2015 emissions. The tax is in the file — commented out, two lines below the cap:
+Table 2 of the paper crosses SAV diffusion (70% by 2050 / none), carbon tax (yes / no), SAV
+charging (optimized / night-only) and a travel-demand multiplier (0.5 / 1 / 2). The scenarios were
+run in 2018 by hand-editing the driver between runs, so only the last state survived — and all five
+surviving copies of `osemosys_run.gms` carry that same last state. Finding a better copy was never
+going to help.
 
-```gams
-scalar apol Model End fraction of base case emissions /0.1/;
-AnnualEmissionLimit(r,e,y) = ...                       <- this runs
+The grid now lives in [`scenarios/table2.csv`](scenarios/table2.csv) and is driven by
+`model/osemosys_scenario.gms`. **Adding or changing a scenario is an edit to the CSV, never to the
+GAMS.** The 2018 `osemosys_run.gms` is kept verbatim as the artifact and is not modified.
 
-*EmissionsPenalty(r,e,"2015") = 20;                    <- the paper's tax, disabled
-*EmissionsPenalty(r,e,y) = EmissionsPenalty(r,e,"2015")*(1.05)**(ord(y)-1);
-```
+### The ten scenarios — solved 2026-09-06, GAMS 42.5 / CPLEX
 
-So `Policy_Results` is a cap scenario that appears nowhere in the paper. Reproducing the published
-carbon-tax cases means enabling those two lines and removing the cap.
+| # | SAV | tax | charging | dm | objective | gas 2035 | gas peak | year |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 70% | no | optimized | 0.5 | 66,113.20 | 80.6% | 80.6% | 2035 |
+| 2 | 70% | no | optimized | 2 | 85,409.64 | 77.7% | 78.0% | 2036 |
+| 3 | 70% | no | optimized | 1 | 72,412.33 | 79.6% | 79.6% | 2035 |
+| 4 | 70% | no | night only | 1 | 75,110.56 | 80.0% | 80.0% | 2035 |
+| 5 | none | no | n/a | n/a | 92,091.39 | 80.5% | 80.5% | 2035 |
+| 6 | 70% | **yes** | optimized | 0.5 | 71,267.76 | 14.2% | 55.7% | **2021** |
+| 7 | 70% | **yes** | optimized | 2 | 90,819.95 | 13.7% | 56.9% | **2021** |
+| 8 | 70% | **yes** | optimized | 1 | 77,638.36 | 14.0% | 55.6% | **2021** |
+| 9 | 70% | **yes** | night only | 1 | 80,451.63 | 13.6% | 55.9% | **2021** |
+| 10 | none | **yes** | n/a | n/a | 97,883.08 | 14.3% | 55.7% | **2021** |
 
-**The paper prints no cost figures at all** — Fig. 10 gives objective values as bar heights only, with
-no table — so `85,409.6403` cannot be checked against the article directly.
+43.8 minutes for all ten, run sequentially.
 
-### What can be checked, and does
+### The acceptance test — and it passes
 
-The paper does state the electricity mix numerically. Against a generation-only denominator
-(excluding storage, V2G and charging):
+The paper prints **no cost figures at all**: Fig. 10 gives objective values as bar heights only,
+with no table, so not one number in the objective column above can be checked against the article.
+The electricity mix is the only published quantity this model can be held to, and the paper states
+two figures. Against a generation-only denominator (storage, V2G and charging also produce ELC and
+are excluded):
 
-| Paper | This run |
-|---|---|
-| No carbon tax: natural gas "accounts for **80%** of electricity produced" in 2035 | **77.7%** — baseline |
-| Carbon tax: natural gas "peaks at **56%**" share in 2021 | **54.6%**, peaking 2025 — cap run |
+| Paper | Central case | Result |
+|---|---|---|
+| No tax: natural gas "accounts for **80%** of electricity produced" in 2035 | scenario 3 | **79.6%** — off by 0.4 |
+| Carbon tax: natural gas "peaks at **56%**" share in **2021** | scenario 8 | **55.6% in 2021** — off by 0.4, year exact |
 
-The baseline lands within ~2 points of the published figure, which is real corroboration. The policy
-case is the right magnitude but peaks four years later — exactly what a cap ramping linearly to 2050
-would do compared with a tax that bites immediately, and further evidence the two are different
-scenarios.
+**All five taxed scenarios peak in 2021**, at 55.6–56.9%, straddling the published 56%. All four
+SAV no-tax scenarios land at 77.7–80.6% in 2035, straddling the published 80%.
+
+**The peak year is the load-bearing evidence.** The old cap run peaks at 54.6% in **2025** — right
+magnitude, four years late, which is exactly what a cap ramping linearly to 2050 does compared with
+a tax that bites immediately. Enabling the tax moves the peak to 2021, and it stays there across
+every taxed case regardless of demand multiplier or charging paradigm. That is a signature, not a
+coincidence.
+
+### Two things worth knowing about the 2018 file
+
+**The saved 2018 run is scenario 2, not the central case.** The data file carries `scalar DM /2/`,
+so what reproduces at 98.35% above is the `dm=2` corner of the grid — and at 77.7% it is the
+*worst* match to the paper's 80% of any no-tax scenario. The central case (`dm=1`, scenario 3)
+gives 79.6%. Do not read the shipped state as the headline case.
+
+**The paper's tax is already in the data file, built and then discarded.**
+`ATX_Integrated_Final_Fleet.gms` constructs `EmissionsPenalty` at $20/tCO₂ projected forward at 5%
+a year — exactly the published policy — and then zeroes it on the very next line. The run file
+carries the same pair commented out, below the cap. The scenario driver restores it rather than
+reinventing it.
 
 ## Running it
 
 ```bash
-gams model/osemosys_run.gms
-python scripts/validate.py results/OSeMOSYS_ATX_Baseline_Results.csv
+python scripts/test_offline.py                 # everything that needs no solver, ~1 s
+python scripts/run_scenarios.py                # all ten scenarios, ~44 min
+python scripts/check_results.py                # the grid, the levers and the acceptance test
 ```
 
-⚠️ **Set `solprint=off` before running.** `osemosys_run.gms` ships with `solprint=on`, which over
-17.6M variables writes a listing that passed **4.7 GB and was still growing** when interrupted. Use a
-`.gdx` unload to capture results instead. `.lst` files are gitignored for this reason.
+Scenarios are independent, so an interrupted run resumes:
 
-A commercial LP solver is required — this is far beyond any free or size-limited licence.
+```bash
+python scripts/run_scenarios.py --only 4,9     # just these two
+```
+
+The 2018 driver still runs unchanged, and `validate.py` compares any output against the reference:
+
+```bash
+gams model/osemosys_run.gms
+python scripts/validate.py results/scenario-02/scenario-02.csv reference-output/OSeMOSYS_ATX_Baseline_Results.csv
+```
+
+⚠️ **`solprint=off`, always.** `osemosys_run.gms` ships with `solprint=on`, which over 17.6M
+variables writes a listing that passed **4.7 GB and was still growing** when interrupted. The
+scenario driver sets it off, and `test_offline.py` fails if that is ever undone.
+
+⚠️ **One solve at a time.** A solve peaks near 16 GB on a 32 GB machine. `run_scenarios.py` is
+sequential deliberately.
+
+⚠️ **`execute_unload` is restricted** to the reported symbols. Unrestricted it writes every symbol
+in an 18.7M-variable model — 954 MB per scenario, 9.5 GB across the grid. Restricted it is 56 MB.
+
+A commercial LP solver is required — this is far beyond any free or size-limited licence, which is
+also why there is no CI. `scripts/test_offline.py` is the suite CI would run if it could.
+
+## How the rebuild is kept honest
+
+Ten scenarios that were quietly the *same* scenario would all solve and all report success, so "the
+run succeeded" is not evidence that anything was applied. Four checks exist for that:
+
+- **The demand agreement assertion**, in `osemosys_scenario.gms`. The SAV cases split one travel
+  demand into private VMT and fleet FMT; the no-SAV case is that demand undivided. The driver
+  asserts `VMT + FMT` equals the no-SAV row in every year — which tests the split hypothesis, the
+  recovery of the base FMT row, and the transcribed CSV, all at once. Measured agreement: 2.0e-4
+  against a 1e-3 tolerance.
+- **The lever check**, in `check_results.py`. Every run records what its levers actually did to
+  `results/scenario-NN/levers.csv`; the checker re-derives what they should have been from the grid
+  and compares. The levers are confirmed from the outputs, never from the inputs the runner was
+  handed.
+- **The fleet check.** For the no-SAV cases `NewCapacity` must be zero for all six fleet
+  technologies in all 36 years, and non-zero for the SAV cases. This tests `NewCapacity`, not
+  `TotalAnnualCapacity`: the 2015 column carries inherited stock — 180 thousand `ICE_PET_F`, 2
+  thousand `EV_F` — that exists whatever the scenario says and is retired in the first period.
+- **Two cost invariants**, which hold by optimisation rather than by energy policy: a carbon tax
+  cannot lower total cost, and night-only charging cannot beat optimized charging. Both compare
+  scenarios differing in exactly one lever, so a violation means the solve or the lever is wrong,
+  not that the model has said something interesting. *(That no-SAV costs more than SAV is a
+  **result**, not a theorem — the two have different demand structures — so it is reported and not
+  asserted.)*
+
+Every one of these has been watched to fail: defect injected, check red, defect removed, check
+green. A guard that has only ever passed is indistinguishable from one that cannot fail.
 
 ## Data
 
