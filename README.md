@@ -1,5 +1,7 @@
 # sav-osemosys
 
+[![Open In Colab — verify](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/00_verify.ipynb) verify the published results, no solver needed
+
 The OSeMOSYS ATX integrated energy–transportation model behind Jones and Leibowicz (2019),
 *Transportation Research Part D* — [10.1016/j.trd.2019.05.005](https://doi.org/10.1016/j.trd.2019.05.005).
 
@@ -225,37 +227,73 @@ private cars.
 
 ## Running it
 
+**Start here — nothing below needs a licence.**
+
+| | what it needs | what it does |
+|---|---|---|
+| [`notebooks/00_verify.ipynb`](notebooks/00_verify.ipynb) [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/00_verify.ipynb) | **nothing** | checks the published results and a shipped instance, row by row, with no solver |
+| [`notebooks/01_model.ipynb`](notebooks/01_model.ipynb) [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/01_model.ipynb) | `highspy` | reads the whole formulation, then builds and solves a reduced instance |
+
+Both fetch their data from this repository if you have not cloned it, so they run in Colab
+untouched.
+
+### Locally
+
 ```bash
-python scripts/test_offline.py                 # everything that needs no solver, ~1 s
-python scripts/run_scenarios.py                # all ten scenarios, ~44 min
-python scripts/check_results.py                # the grid, the levers and the acceptance test
+pip install -e ".[dev]"
+pytest -q                              # 37 tests, no solver, no licence
+python scripts/test_offline.py         # the checks CI would run, ~1 s
 ```
 
-Scenarios are independent, so an interrupted run resumes:
+### The model, in Python — the default path
 
 ```bash
-python scripts/run_scenarios.py --only 4,9     # just these two
+pip install -e ".[gurobi]"
+python scripts/export_reduced.py       # rebuild the shipped .mps / .sol
+python scripts/reconcile.py            # every scenario, against GAMS
 ```
 
-The 2018 driver still runs unchanged, and `validate.py` compares any output against the reference:
+Gurobi is the default solver because a **free academic licence** is unlimited in size. The
+licence bundled with the `gurobipy` package is **not** enough: it caps at 2,000 variables, and
+the smallest useful version of this model is 4,726 — measured, not assumed. For no licence at
+all, use HiGHS on the shipped reduced instance, which is what `01_model.ipynb` does.
+
+### The GAMS model — the original, kept as the alternate
+
+The 2018 GAMS model is what produced the published results, and it is preserved verbatim. It
+needs **both** a GAMS licence and a commercial LP solver, which is the barrier the Python port
+exists to remove.
 
 ```bash
-gams model/osemosys_run.gms
-python scripts/validate.py results/scenario-02/scenario-02.csv reference-output/OSeMOSYS_ATX_Baseline_Results.csv
+python scripts/run_scenarios.py        # all ten scenarios, ~44 min
+python scripts/check_results.py        # the grid, the levers and the acceptance test
+python scripts/clean_output.py         # raw GAMS output -> tidy results/clean/
+python scripts/run_scenarios.py --only 4,9    # scenarios are independent; resume anytime
 ```
 
 ⚠️ **`solprint=off`, always.** `osemosys_run.gms` ships with `solprint=on`, which over 17.6M
 variables writes a listing that passed **4.7 GB and was still growing** when interrupted. The
 scenario driver sets it off, and `test_offline.py` fails if that is ever undone.
 
-⚠️ **One solve at a time.** A solve peaks near 16 GB on a 32 GB machine. `run_scenarios.py` is
-sequential deliberately.
+⚠️ **One solve at a time.** A GAMS solve peaks near 16 GB on a 32 GB machine. `run_scenarios.py`
+is sequential deliberately.
 
-⚠️ **`execute_unload` is restricted** to the reported symbols. Unrestricted it writes every symbol
-in an 18.7M-variable model — 954 MB per scenario, 9.5 GB across the grid. Restricted it is 56 MB.
+⚠️ **`execute_unload` is restricted** to the reported symbols. Unrestricted it writes every
+symbol in an 18.7M-variable model — 954 MB per scenario, 9.5 GB across the grid.
 
-A commercial LP solver is required — this is far beyond any free or size-limited licence, which is
-also why there is no CI. `scripts/test_offline.py` is the suite CI would run if it could.
+### What lives where
+
+    data/instance/       the model instance, 102 CSVs, readable with no licence
+    scenarios/           the Table 2 grid - editing this is how you add a scenario
+    src/sav_osemosys/    the model in gurobipy: sets, parameters, variables,
+                         constraints, objective, figures, verification
+    model/               the 2018 GAMS model, verbatim, plus the rebuilt scenario driver
+    results/clean/       tidy results - what the notebooks and figures read
+    artifacts/           the reduced instance as .mps / .sol, for solving without Gurobi
+    notebooks/           shipped executed, with their outputs
+
+There is no CI, because every GAMS solve needs two commercial licences. `pytest` and
+`scripts/test_offline.py` cover everything that does not, and are the suite CI would run.
 
 ## How the rebuild is kept honest
 

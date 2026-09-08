@@ -1,0 +1,53 @@
+{
+  "scenario": 3,
+  "levers": {
+    "sav": "70",
+    "tax": "no",
+    "charging": "optimized",
+    "dm": "1"
+  },
+  "years": [
+    "2015",
+    "2016",
+    "2017",
+    "2018",
+    "2019",
+    "2020"
+  ],
+  "timeslices": [
+    "W1",
+    "W5",
+    "W9",
+    "W13",
+    "W17",
+    "W21",
+    "SF1",
+    "SF5",
+    "SF9",
+    "SF13",
+    "SF17",
+    "SF21",
+    "S1",
+    "S5",
+    "S9",
+    "S13",
+    "S17",
+    "S21"
+  ],
+  "variables": 70355,
+  "constraints": 72877,
+  "nonzeros": 187411,
+  "objective": 5900.422796830308,
+  "components": {
+    "technology": 5818.207909340702,
+    "storage": 0.0,
+    "demand_response": 82.21488748960371,
+    "total": 5900.422796830306,
+    "objective": 5900.422796830308,
+    "residual": -1.8189894035458565e-12
+  },
+  "max_violation_absolute": 2.1075479385563846e-07,
+  "max_violation_relative": 1.9514332764410968e-13,
+  "built_with": "gurobipy",
+  "note": "A reduced instance, NOT the published result. The published scenarios use 36 years and 72 timeslices; see results/clean/."
+}
