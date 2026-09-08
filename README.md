@@ -233,11 +233,12 @@ private cars.
 
 ## Running it
 
-**Start here — nothing below needs a licence.**
+**Start here — nothing below needs a solver or a licence.** Both notebooks install
+the package and its three dependencies; neither needs Gurobi, GAMS or CPLEX.
 
 | | what it needs | what it does |
 |---|---|---|
-| [`notebooks/00_verify.ipynb`](notebooks/00_verify.ipynb) [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/00_verify.ipynb) | **nothing** | checks the published results and a shipped instance, row by row, with no solver |
+| [`notebooks/00_verify.ipynb`](notebooks/00_verify.ipynb) [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/00_verify.ipynb) | **no solver, no licence** (numpy, pandas, matplotlib) | checks the published results and a shipped instance, row by row |
 | [`notebooks/01_model.ipynb`](notebooks/01_model.ipynb) [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/01_model.ipynb) | `highspy` | reads the whole formulation, then builds and solves a reduced instance |
 
 Both fetch their data from this repository if you have not cloned it, so they run in Colab

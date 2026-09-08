@@ -69,6 +69,10 @@ Part D*, [10.1016/j.trd.2019.05.005](https://doi.org/10.1016/j.trd.2019.05.005).
 stronger thing: re-solving asks you to trust a solver, a licence and a machine, while
 checking asks you to trust arithmetic.
 
+To be exact about "needs nothing", because it is a claim and not a slogan: this needs
+**numpy, pandas and matplotlib**, which the install cell fetches. What it does not need is
+a solver, a licence, GAMS, or Gurobi.
+
 Three things are established below:
 
 1. the ten published scenarios, and how they compare to the two figures the paper prints
