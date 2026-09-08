@@ -18,8 +18,14 @@ gurobi.lic
 *.xls
 
 # generated
+# results/ holds RAW solver output - large, regenerable, and needing two commercial
+# licences to reproduce. results/clean/ is the tidy version and IS committed: it is the
+# deliberate exception of Part 1 rule 5, because it is what the notebooks and figures
+# read, and without it nothing in this repository works from a clean clone.
 results/**
 !results/.gitkeep
+!results/clean/
+!results/clean/**
 __pycache__/
 *.pyc
 
