@@ -9,4 +9,4 @@ code runs from a clone and from a Colab notebook with nothing checked out.
 from sav_osemosys.data import Instance, RAW_BASE, instance_dir, load_symbol
 
 __all__ = ["Instance", "RAW_BASE", "instance_dir", "load_symbol"]
-__version__ = "0.2.0"
+__version__ = "1.0.0"

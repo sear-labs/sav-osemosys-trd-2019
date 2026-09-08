@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sav-osemosys"
-version = "0.2.0"
+version = "1.0.0"
 description = "The OSeMOSYS ATX energy-transportation model behind Jones and Leibowicz (2019), Transportation Research Part D"
 readme = "README.md"
 requires-python = ">=3.10"
