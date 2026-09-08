@@ -48,9 +48,21 @@ def main() -> int:
     args = ap.parse_args()
 
     from sav_osemosys import Instance
+    from sav_osemosys.licence import find_licence, gurobi_env
     from sav_osemosys.model import build
     from sav_osemosys.parameters import Scenario
     from sav_osemosys.objective import components
+
+    lic = find_licence()
+    print(lic)
+    if not lic.usable:
+        sys.exit(
+            "error: building the reduced instance needs a Gurobi licence.\n"
+            "       Set GRB_WLSACCESSID / GRB_WLSSECRET / GRB_LICENSEID, or just use\n"
+            "       the artifacts/ files already committed to this repository - they\n"
+            "       are the output of this script."
+        )
+    env = gurobi_env()
 
     import csv as _csv
     text = "\n".join(l for l in (ROOT / "scenarios" / "table2.csv").read_text().splitlines()
@@ -61,7 +73,8 @@ def main() -> int:
 
     print(f"building {scenario.label()}")
     print(f"  reduced to {len(REDUCED_YEARS)} years x {len(REDUCED_TIMESLICES)} timeslices")
-    b = build(Instance(), scenario, years=REDUCED_YEARS, timeslices=REDUCED_TIMESLICES)
+    b = build(Instance(), scenario, years=REDUCED_YEARS,
+              timeslices=REDUCED_TIMESLICES, env=env)
     b.model.Params.OutputFlag = 0
     print(f"  {b.size()}")
 

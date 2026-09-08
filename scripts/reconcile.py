@@ -86,8 +86,20 @@ def main() -> int:
     args = ap.parse_args()
 
     from sav_osemosys import Instance
+    from sav_osemosys.licence import find_licence, gurobi_env
     from sav_osemosys.model import build
     from sav_osemosys.parameters import Scenario
+
+    lic = find_licence()
+    print(lic)
+    if not lic.usable:
+        sys.exit(
+            "error: this needs a Gurobi licence that can build the full model.\n"
+            "       Set GRB_WLSACCESSID / GRB_WLSSECRET / GRB_LICENSEID for a Web\n"
+            "       License Service licence, or run notebooks/01_model.ipynb, which\n"
+            "       solves a reduced instance with HiGHS and needs no licence at all."
+        )
+    env = gurobi_env()
 
     gdxdump = find_gdxdump(args.gdxdump)
     if gdxdump is None:
@@ -111,7 +123,7 @@ def main() -> int:
         scenario = Scenario(n, row["sav"], row["tax"], row["charging"],
                             row["dm"] if row["dm"] == "n/a" else float(row["dm"]))
         started = time.time()
-        b = build(inst, scenario)
+        b = build(inst, scenario, env=env)
         b.model.Params.OutputFlag = 0
         b.model.optimize()
         elapsed = time.time() - started

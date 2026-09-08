@@ -79,37 +79,21 @@ Credentials go in Colab secrets, never in the notebook. `SecretNotFoundError` on
 run is expected if you have not set them.
 """),
         code('''
-import os
-
 import highspy
+from sav_osemosys.licence import find_licence, gurobi_env
 
-KEYS = ("WLSACCESSID", "WLSSECRET", "LICENSEID")
-found = {k: os.environ.get("GRB_" + k) for k in KEYS}
-if not all(found.values()):
-    try:
-        from google.colab import userdata
-        found = {k: userdata.get("GRB_" + k) for k in KEYS}
-    except Exception:
-        found = {}
+# One implementation, shared with the scripts - see sav_osemosys/licence.py. It looks for
+# WLS credentials in the environment, then in Colab secrets, then falls back to whatever
+# Gurobi finds locally. Credentials never appear in the notebook.
+licence = find_licence()
+GUROBI_ENV = gurobi_env() if licence.usable else None
+HAVE_GUROBI = licence.usable
 
-GUROBI_ENV = None
-HAVE_GUROBI = False
-try:
-    import gurobipy as gp
-    if found and all(found.values()):
-        GUROBI_ENV = gp.Env(params={"WLSACCESSID": found["WLSACCESSID"],
-                                    "WLSSECRET": found["WLSSECRET"],
-                                    # userdata.get returns a string; LICENSEID is an int
-                                    "LICENSEID": int(found["LICENSEID"])})
-    with gp.Model(env=GUROBI_ENV) if GUROBI_ENV else gp.Model() as _probe:
-        _probe.addVars(3000)          # past the 2,000-variable pip cap
-        _probe.update()
-    HAVE_GUROBI = True
-except Exception as exc:
-    print(f"Gurobi unavailable ({type(exc).__name__}) — HiGHS will be used throughout.")
-
-print(f"HiGHS       : available ({highspy.Highs().version()})")
-print(f"Gurobi      : {'available' if HAVE_GUROBI else 'not available — everything below still runs'}")
+print(f"HiGHS   : available ({highspy.Highs().version()})")
+print(f"Gurobi  : {licence}")
+if not HAVE_GUROBI:
+    print()
+    print("-> Everything below still runs. The model is solved with HiGHS.")
 '''),
         md("""
 ## 1. Sets
