@@ -132,12 +132,24 @@ def test_the_verification_runs_end_to_end_with_no_solver(no_solvers):
     assert result.ok(), result.summary()
 
 
+def test_the_model_module_imports_without_a_solver(no_solvers):
+    """`model.py` must import lazily: the solver is needed by build(), not by import.
+
+    Split from the build() assertion below on purpose. One `pytest.raises` wrapping
+    both statements would keep passing if the import itself started needing gurobipy
+    - the exact defect this file exists to catch - because ImportError would simply
+    be raised one line earlier than expected. A single assertion can't distinguish
+    "failed for the right reason" from "failed for a different reason at all."
+    """
+    importlib.import_module("sav_osemosys.model")
+
+
 def test_building_a_model_still_needs_a_solver(no_solvers):
     """The other direction, so the blocker is shown to be load-bearing.
 
     If this ever passes, the model module has stopped needing a solver, which would mean
     the tests above are no longer testing anything.
     """
+    model = importlib.import_module("sav_osemosys.model")
     with pytest.raises(ImportError, match="BLOCKED"):
-        model = importlib.import_module("sav_osemosys.model")
         model.build()
