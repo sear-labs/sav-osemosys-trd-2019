@@ -331,6 +331,19 @@ run succeeded" is not evidence that anything was applied. Four checks exist for 
 Every one of these has been watched to fail: defect injected, check red, defect removed, check
 green. A guard that has only ever passed is indistinguishable from one that cannot fail.
 
+Two more checks guard the notebooks specifically, since a notebook publishes both code and its
+committed output — a different honesty problem than the scenario grid's:
+
+- **`scripts/check_no_machine_paths.py`** sweeps every tracked file, source and binary, for an
+  absolute path from the machine that wrote it. Found once — a username in `notebooks/01_model.ipynb`'s
+  committed output — by a peer session applying the same check to its own repository and reporting
+  the result back here.
+- **`scripts/check_notebooks.py`** re-executes both notebooks and compares source and *every* output
+  channel against what is committed, not a named subset of them — a comparison narrowed to
+  `text/plain` is blind to a result that renders only as `text/html`, and the miss does not announce
+  itself. Needs `nbformat`, `nbclient`, and (for `01_model.ipynb`) `highspy`; missing any is reported
+  as a skip.
+
 ## Data
 
 **Self-contained.** All parameters are inline in `model/ATX_Integrated_Final_Fleet.gms`; the model

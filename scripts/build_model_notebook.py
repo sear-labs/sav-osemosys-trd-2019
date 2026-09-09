@@ -109,7 +109,11 @@ from sav_osemosys import Instance
 from sav_osemosys.sets import build_indices
 
 inst = Instance()
-print("instance source:", inst.source)
+# Not inst.source directly: that is an absolute filesystem path on a local clone,
+# and this line's OUTPUT is committed with the notebook. Local-vs-GitHub carries
+# the information a reader needs without carrying anyone's home directory into
+# a file that ships publicly.
+print("instance source:", "local clone" if inst.is_local else "GitHub (no local clone found)")
 
 ix = build_indices(inst)
 print()
@@ -289,7 +293,10 @@ elapsed = time.time() - started
 info = h.getInfo()
 print(f"HiGHS status     {h.modelStatusToString(h.getModelStatus())}")
 print(f"objective        {info.objective_function_value:,.6f}")
-print(f"solve time       {elapsed:.1f}s")
+# Not the wall-clock elapsed time: a stopwatch reading has no bearing on any
+# result and, printed into committed output, is the only thing that kept this
+# notebook from reproducing byte-for-byte on a machine other than the one that
+# generated it. `elapsed` is still measured above in case a reader wants it live.
 '''),
         code('''
 if HAVE_GUROBI and m3 is not None:

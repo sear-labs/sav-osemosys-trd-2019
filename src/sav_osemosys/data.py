@@ -166,6 +166,16 @@ class Instance:
     # DemandResponseDiscountRate(r) exports as "r", not "REGION". Resolving aliases
     # here means callers name the set they mean and do not have to know which
     # declaration a symbol happened to use.
+    #
+    # Only "r" has ever fired against this instance - checked by instrumenting the
+    # resolver and loading every symbol across all ten scenarios. The other fifteen
+    # entries, and the .lower()/.upper()/Dim1 fallbacks below, are conventional GAMS
+    # names carried for a declaration this data file has not used. That is not a bug:
+    # a symbol this map fails to resolve raises KeyError here, and the one caller,
+    # Instance.param(), does not catch it - it degrades silently only when the whole
+    # file is missing (see the except clause around inst.param(...) in parameters.py),
+    # not when a column can't be found. So an unused entry stays safe to keep and
+    # honest to prune; it is not exercised by anything that runs today.
     _ALIASES = {
         "r": "REGION", "rr": "REGION",
         "y": "YEAR", "yy": "YEAR", "v": "YEAR",
