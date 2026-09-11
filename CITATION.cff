@@ -1,4 +1,7 @@
 cff-version: 1.2.0
+# Zenodo CONCEPT doi - always resolves to the latest version, so this line is
+# correct for the life of the repository and is never edited again.
+doi: 10.5281/zenodo.22715620
 message: "If you use this software, please cite the paper."
 title: "sav-osemosys: OSeMOSYS ATX integrated energy-transportation model"
 version: 1.0.0
