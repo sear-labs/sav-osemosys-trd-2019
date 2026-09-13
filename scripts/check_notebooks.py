@@ -43,6 +43,29 @@ not normalised, because it is a value this repo chose to print and could simply 
 printing. Confusing the two - reaching for the normaliser because it is easier than
 finding the print statement - is how a normaliser grows into something that hides an
 increasingly wide class of real differences instead of a narrow class of inert ones.
+
+**`image/png` is compared by presence, not by bytes, and this is a limit, not an
+oversight.** Two things make an embedded figure's bytes vary across an otherwise
+identical machine: matplotlib stamps its own version into the PNG's `tEXt` chunk
+(confirmed present in this repo's committed output - `Software: Matplotlib version
+3.10.6, ...`), and `bbox_inches="tight"` - used by `scripts/make_figures.py` and by
+ipykernel's inline backend default for every `plt.show()` in these notebooks - crops
+to the rendered extent of text, which depends on font metrics that differ by
+platform. A peer session measured this directly on real CI: the same figure came
+back a different **shape** (1388x586 vs 1389x587), not just different bytes, so
+there is nothing to compare pixel-for-pixel even in principle. Comparing exactly
+would make this check pass only on the machine that generated the committed
+notebooks - the same failure class as the machine-path leak this file was written
+to help catch, arrived at from the opposite direction. Presence still catches a
+figure that silently stopped rendering; it does not catch one that rendered
+differently. Nothing in this repository yet checks committed figures byte-for-byte
+on the machine that maintains them, which is the only machine where that
+comparison is a meaningful claim - a gap stated here rather than papered over.
+
+**A mismatch is reported by cell and channel, not as a bare "OUTPUT differs".**
+Reported here because a peer session hit the same defect from the other side first:
+a check that detects a difference it cannot describe is barely more useful than one
+that misses it. `_differing_channels` names which field or `data` key changed.
 """
 from __future__ import annotations
 
@@ -55,6 +78,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 _ADDR = re.compile(r"0x[0-9a-fA-F]{6,}")
+_IMAGE_PRESENT = "<image data present - not compared byte-for-byte, see module docstring>"
 
 
 def _normalise_object_addresses(value):
@@ -65,13 +89,29 @@ def _normalise_object_addresses(value):
     return value
 
 
+def _normalise_data_channel(mime: str, value):
+    """Collapse any non-empty image to one sentinel, regardless of its bytes.
+
+    A present-but-different image (platform-dependent version stamp, platform-
+    dependent crop from font-metric-driven bbox_inches="tight") must compare EQUAL.
+    A present-vs-absent image must still compare DIFFERENT, so a figure that stopped
+    rendering is still caught. Collapsing to a fixed sentinel only when truthy gets
+    both for free from ordinary equality, with no separate presence-tracking needed.
+    """
+    if mime.startswith("image/"):
+        return _IMAGE_PRESENT if value else value
+    return _normalise_object_addresses(value)
+
+
 def _cell_outputs(cell) -> list[dict]:
     """Every output channel the cell actually carries, not a named subset of them.
 
     Comparing the whole normalised output object - rather than extracting `text/plain`
     or any other single key - is what makes this sensitive to a difference that lives
     only in `text/html`, only in `image/png`, or in a channel nobody has thought to
-    name yet. See the module docstring for the concrete case this was written for.
+    name yet. See the module docstring for the concrete case this was written for,
+    and for why `image/png` specifically is normalised to presence rather than left
+    to compare exactly like every other channel.
     """
     out = []
     for o in cell.get("outputs", []):
@@ -81,9 +121,21 @@ def _cell_outputs(cell) -> list[dict]:
             t = o["text"]
             o["text"] = _normalise_object_addresses(t if isinstance(t, str) else "".join(t))
         if "data" in o:
-            o["data"] = {k: _normalise_object_addresses(v) for k, v in o["data"].items()}
+            o["data"] = {k: _normalise_data_channel(k, v) for k, v in o["data"].items()}
         out.append(o)
     return out
+
+
+def _differing_channels(a_out: dict, b_out: dict) -> list[str]:
+    """Name exactly which field or data channel differs, not just that the two
+    outputs are unequal. "cell 5: OUTPUT differs" tells a reader nothing they can
+    act on; "cell 5 output 0: data['text/html']" tells them where to look.
+    """
+    names = [k for k in ("output_type", "name", "text") if a_out.get(k) != b_out.get(k)]
+    data_keys = set(a_out.get("data", {})) | set(b_out.get("data", {}))
+    names += [f"data[{ch!r}]" for ch in sorted(data_keys)
+              if a_out.get("data", {}).get(ch) != b_out.get("data", {}).get(ch)]
+    return names or ["(differs, but no single field could be localised - report this)"]
 
 
 def test_the_comparison_sees_a_renderer_only_difference() -> None:
@@ -112,6 +164,53 @@ def test_the_comparison_sees_a_renderer_only_difference() -> None:
     assert _cell_outputs(a["cells"][0]) == _cell_outputs(only_address_differs["cells"][0]), (
         "an object-identity address alone was treated as a real difference"
     )
+
+
+def test_the_comparison_ignores_image_bytes_but_not_image_presence() -> None:
+    """Watched to fail in both directions - the two mistakes this shape can make.
+
+    Two DIFFERENT PNG payloads, both present, must compare EQUAL: exact bytes vary
+    by matplotlib version (a version string is literally embedded in the PNG) and by
+    platform (bbox_inches="tight" crops from font metrics), so exact comparison would
+    fail on every machine but the one that generated the committed notebook - measured
+    by a peer session as a genuine shape difference (1388x586 vs 1389x587), not just
+    different bytes. A figure that VANISHED - present in one, absent in the other -
+    must still compare DIFFERENT, or a real regression goes uncaught.
+    """
+    present_a = {"cells": [{"cell_type": "code", "outputs": [
+        {"output_type": "display_data", "data": {"image/png": "aaaa==bytes-from-machine-A"}},
+    ]}]}
+    present_b = copy.deepcopy(present_a)
+    present_b["cells"][0]["outputs"][0]["data"]["image/png"] = "bbbb==different-bytes-machine-B"
+    assert _cell_outputs(present_a["cells"][0]) == _cell_outputs(present_b["cells"][0]), (
+        "two different-but-present PNGs were treated as a real difference - "
+        "this would fail on every machine but the one that generated the notebook"
+    )
+
+    vanished = copy.deepcopy(present_a)
+    vanished["cells"][0]["outputs"][0]["data"]["image/png"] = ""
+    assert _cell_outputs(present_a["cells"][0]) != _cell_outputs(vanished["cells"][0]), (
+        "a figure that stopped rendering entirely was not noticed"
+    )
+
+
+def test_a_mismatch_names_the_channel_that_differs() -> None:
+    """Watched to fail: the report must say WHICH channel, not just that cells differ.
+
+    A peer session's comparator said only "cells differ" and had to add a diff
+    fallback before a failure was actionable. This asserts the fix stays a fix.
+    """
+    a = _cell_outputs({"outputs": [{"output_type": "stream", "name": "stdout", "text": "66113.2"}]})
+    b = _cell_outputs({"outputs": [{"output_type": "stream", "name": "stdout", "text": "77224.2"}]})
+    names = _differing_channels(a[0], b[0])
+    assert names == ["text"], f"expected the stream text field named, got {names!r}"
+
+    a2 = _cell_outputs({"outputs": [{"output_type": "display_data",
+                                     "data": {"text/html": "<table>1</table>"}}]})
+    b2 = _cell_outputs({"outputs": [{"output_type": "display_data",
+                                     "data": {"text/html": "<table>2</table>"}}]})
+    names2 = _differing_channels(a2[0], b2[0])
+    assert names2 == ["data['text/html']"], f"expected the html data key named, got {names2!r}"
 
 
 def _reexecute(name: str):
@@ -147,8 +246,16 @@ def check_notebook(name: str, *, needs) -> str:
             continue
         if "".join(a.source) != "".join(b.source):
             mismatches.append(f"cell {i}: SOURCE differs")
-        elif _cell_outputs(a) != _cell_outputs(b):
-            mismatches.append(f"cell {i}: OUTPUT differs")
+            continue
+        a_out, b_out = _cell_outputs(a), _cell_outputs(b)
+        if len(a_out) != len(b_out):
+            mismatches.append(f"cell {i}: {len(a_out)} outputs committed, "
+                             f"{len(b_out)} regenerated")
+            continue
+        for idx, (oa, ob) in enumerate(zip(a_out, b_out)):
+            if oa != ob:
+                fields = ", ".join(_differing_channels(oa, ob))
+                mismatches.append(f"cell {i} output {idx}: {fields}")
 
     if mismatches:
         raise AssertionError(f"{name}: " + "; ".join(mismatches))
@@ -160,12 +267,21 @@ def main() -> int:
     print("notebook reproducibility - source and every output channel\n")
     failures = []
 
-    try:
-        test_the_comparison_sees_a_renderer_only_difference()
-        print("ok   comparison is sensitive to a renderer-only (text/html) difference")
-    except AssertionError as exc:
-        failures.append("comparator self-test")
-        print(f"FAIL comparator self-test\n       {exc}")
+    self_tests = [
+        ("sensitive to a renderer-only (text/html) difference",
+         test_the_comparison_sees_a_renderer_only_difference),
+        ("ignores image bytes but not image presence",
+         test_the_comparison_ignores_image_bytes_but_not_image_presence),
+        ("names the channel that differs",
+         test_a_mismatch_names_the_channel_that_differs),
+    ]
+    for label, fn in self_tests:
+        try:
+            fn()
+            print(f"ok   comparator self-test: {label}")
+        except AssertionError as exc:
+            failures.append(f"comparator self-test: {label}")
+            print(f"FAIL comparator self-test: {label}\n       {exc}")
 
     for name, needs in [("00_verify.ipynb", ["nbformat", "nbclient"]),
                        ("01_model.ipynb", ["nbformat", "nbclient", "highspy"])]:
