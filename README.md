@@ -1,5 +1,6 @@
 # sav-osemosys
 
+[![Code DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22715620.svg)](https://doi.org/10.5281/zenodo.22715620)
 [![Open In Colab — verify](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sear-labs/sav-osemosys-trd-2019/blob/main/notebooks/00_verify.ipynb) verify the published results, no solver needed
 
 The OSeMOSYS ATX integrated energy–transportation model behind Jones and Leibowicz (2019),
